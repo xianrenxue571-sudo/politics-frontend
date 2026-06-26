@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>管理後台 - 新增人物</title>
+  <style>
+    body { 
+      font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
+      background: #f4f4f9; 
+      padding: 15px; 
+      margin: 0;
+    }
+    .container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      background: white; 
+      padding: 20px; 
+      border-radius: 10px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+    }
+    h2 { color: #2c3e50; margin-top: 0; text-align: center; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; color: #333; font-weight: bold; }
+    input, textarea { 
+      width: 100%; 
+      padding: 10px; 
+      border: 1px solid #ccc; 
+      border-radius: 5px; 
+      box-sizing: border-box; /* 確保手機版不會破版 */
+      font-size: 16px; /* 防止 iOS 點擊輸入框時自動放大 */
+    }
+    button { 
+      width: 100%; 
+      padding: 12px; 
+      background: #3498db; 
+      color: white; 
+      border: none; 
+      border-radius: 5px; 
+      font-size: 16px; 
+      cursor: pointer; 
+      font-weight: bold;
+    }
+    button:hover { background: #2980b9; }
+    #message { margin-top: 15px; text-align: center; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>➕ 新增政治人物</h2>
+    
+    <div class="form-group">
+      <label>姓名 (必填)</label>
+      <input type="text" id="name" placeholder="例如：王大明">
+    </div>
+
+    <div class="form-group">
+      <label>所屬政黨</label>
+      <input type="text" id="party" placeholder="例如：無黨籍">
+    </div>
+
+    <div class="form-group">
+      <label>簡介與備註</label>
+      <textarea id="description" rows="4" placeholder="簡單描述這位人物..."></textarea>
+    </div>
+
+    <button onclick="submitData()">確認送出</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    // 👇👇👇 請換成你的 Render 網址 (保留單引號，結尾不要加 /) 👇👇👇
+    const API_URL = 'https://politics-api-j18a.onrender.com';
+
+    async function submitData() {
+      const name = document.getElementById('name').value;
+      const party = document.getElementById('party').value;
+      const description = document.getElementById('description').value;
+      const msgDiv = document.getElementById('message');
+
+      if (!name) {
+        msgDiv.style.color = 'red';
+        msgDiv.innerText = '❌ 請填寫姓名！';
+        return;
+      }
+
+      msgDiv.style.color = '#f39c12';
+      msgDiv.innerText = '⏳ 資料傳送中...';
+
+      try {
+        const response = await fetch(`${API_URL}/api/politicians`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, party, description })
+        });
+        
+        const result = await response.json();
+
+        if (response.ok) {
+          msgDiv.style.color = '#27ae60';
+          msgDiv.innerText = '✅ ' + result.message;
+          // 清空表單
+          document.getElementById('name').value = '';
+          document.getElementById('party').value = '';
+          document.getElementById('description').value = '';
+        } else {
+          msgDiv.style.color = 'red';
+          msgDiv.innerText = '❌ 錯誤：' + result.error;
+        }
+      } catch (error) {
+        msgDiv.style.color = 'red';
+        msgDiv.innerText = '❌ 連線失敗，請檢查後端是否正常運作。';
+      }
+    }
+  </script>
+</body>
+</html>
