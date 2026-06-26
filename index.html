@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>政治人物言行追蹤網</title>
+  <style>
+    body { 
+      font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
+      background: #f4f4f9; 
+      padding: 20px; 
+      margin: 0;
+    }
+    .container { 
+      max-width: 800px; 
+      margin: 0 auto; 
+      background: white; 
+      padding: 20px; 
+      border-radius: 10px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+    }
+    h1 { color: #2c3e50; text-align: center; }
+    #status { 
+      text-align: center; 
+      padding: 10px; 
+      margin-bottom: 20px; 
+      border-radius: 5px;
+      background-color: #e8f8f5;
+      color: #16a085;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>政治人物言行追蹤網 - 測試版</h1>
+    <div id="status">正在嘗試與後端連線...</div>
+    <p style="text-align: center; color: #666;">如果上方顯示連線成功，代表「前端 ↔ 後端 ↔ 資料庫」全線貫通！</p>
+  </div>
+
+  <script>
+    // 👇👇👇 【重要】請把下方引號內的文字，換成你的 Render 網址 👇👇👇
+    // 格式範例：'https://politics-api-xxxx.onrender.com' (請保留單引號，網址最後不要有 / )
+    const API_URL = 'https://politics-api-j18a.onrender.com';
+
+    async function checkStatus() {
+      const statusDiv = document.getElementById('status');
+      try {
+        const res = await fetch(`${API_URL}/api/status`);
+        const data = await res.json();
+        statusDiv.innerText = '✅ 完美連線：' + data.message;
+      } catch (err) {
+        statusDiv.innerText = '❌ 無法連線到後端，請檢查網址是否有填錯。錯誤訊息：' + err.message;
+        statusDiv.style.backgroundColor = '#fadbd8';
+        statusDiv.style.color = '#c0392b';
+      }
+    }
+
+    // 網頁載入時自動執行檢查
+    checkStatus();
+  </script>
+</body>
+</html>
