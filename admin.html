@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>管理後台 - 新增人物</title>
+  <title>管理後台 - 言行追蹤網</title>
   <style>
     body { 
       font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
@@ -18,22 +18,22 @@
       padding: 20px; 
       border-radius: 10px; 
       box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+      margin-bottom: 20px;
     }
-    h2 { color: #2c3e50; margin-top: 0; text-align: center; }
+    h2 { color: #2c3e50; margin-top: 0; text-align: center; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
     .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 5px; color: #333; font-weight: bold; }
-    input, textarea { 
+    label { display: block; margin-bottom: 5px; color: #333; font-weight: bold; font-size: 14px; }
+    input, textarea, select { 
       width: 100%; 
       padding: 10px; 
       border: 1px solid #ccc; 
       border-radius: 5px; 
-      box-sizing: border-box; /* 確保手機版不會破版 */
-      font-size: 16px; /* 防止 iOS 點擊輸入框時自動放大 */
+      box-sizing: border-box; 
+      font-size: 16px; 
     }
     button { 
       width: 100%; 
       padding: 12px; 
-      background: #3498db; 
       color: white; 
       border: none; 
       border-radius: 5px; 
@@ -41,46 +41,103 @@
       cursor: pointer; 
       font-weight: bold;
     }
-    button:hover { background: #2980b9; }
-    #message { margin-top: 15px; text-align: center; font-weight: bold; }
+    .btn-blue { background: #3498db; }
+    .btn-blue:hover { background: #2980b9; }
+    .btn-red { background: #e74c3c; }
+    .btn-red:hover { background: #c0392b; }
+    .message { margin-top: 15px; text-align: center; font-weight: bold; }
   </style>
 </head>
 <body>
+
   <div class="container">
-    <h2>➕ 新增政治人物</h2>
+    <h2>🔥 新增爭議 / 不良言行</h2>
     
     <div class="form-group">
-      <label>姓名 (必填)</label>
-      <input type="text" id="name" placeholder="例如：王大明">
+      <label>關聯政治人物 (必選)</label>
+      <select id="politician_id">
+        <option value="">⏳ 載入名單中...</option>
+      </select>
     </div>
 
+    <div class="form-group">
+      <label>事件標題 (必填)</label>
+      <input type="text" id="incident_title" placeholder="例如：某某弊案、失言風波">
+    </div>
+
+    <div class="form-group">
+      <label>發生日期</label>
+      <input type="date" id="incident_date">
+    </div>
+
+    <div class="form-group">
+      <label>詳細內容 (必填)</label>
+      <textarea id="incident_content" rows="4" placeholder="客觀描述事件經過..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>新聞/來源連結</label>
+      <input type="url" id="source_url" placeholder="https://...">
+    </div>
+
+    <button class="btn-red" onclick="submitIncident()">發布爭議事件</button>
+    <div id="incident_message" class="message"></div>
+  </div>
+
+  <div class="container">
+    <h2>➕ 新增政治人物 (建檔用)</h2>
+    <div class="form-group">
+      <label>姓名 (必填)</label>
+      <input type="text" id="pol_name" placeholder="例如：王大明">
+    </div>
     <div class="form-group">
       <label>所屬政黨</label>
-      <input type="text" id="party" placeholder="例如：無黨籍">
+      <input type="text" id="pol_party" placeholder="例如：無黨籍">
     </div>
-
     <div class="form-group">
-      <label>簡介與備註</label>
-      <textarea id="description" rows="4" placeholder="簡單描述這位人物..."></textarea>
+      <label>簡介</label>
+      <textarea id="pol_description" rows="2"></textarea>
     </div>
-
-    <button onclick="submitData()">確認送出</button>
-    <div id="message"></div>
+    <button class="btn-blue" onclick="submitPolitician()">建檔人物</button>
+    <div id="pol_message" class="message"></div>
   </div>
 
   <script>
     // 👇👇👇 請換成你的 Render 網址 (保留單引號，結尾不要加 /) 👇👇👇
     const API_URL = 'https://politics-api-j18a.onrender.com';
 
-    async function submitData() {
-      const name = document.getElementById('name').value;
-      const party = document.getElementById('party').value;
-      const description = document.getElementById('description').value;
-      const msgDiv = document.getElementById('message');
+    // 網頁載入時，自動去後端抓政治人物名單放入下拉選單
+    window.onload = async function() {
+      const select = document.getElementById('politician_id');
+      try {
+        const response = await fetch(`${API_URL}/api/politicians`);
+        const data = await response.json();
+        
+        if (response.ok && data.length > 0) {
+          select.innerHTML = '<option value="">請選擇人物...</option>';
+          data.forEach(pol => {
+            select.innerHTML += `<option value="${pol.id}">${pol.name} (${pol.party || '無黨籍'})</option>`;
+          });
+        } else {
+          select.innerHTML = '<option value="">目前尚無人物，請先在下方建檔</option>';
+        }
+      } catch (err) {
+        select.innerHTML = '<option value="">❌ 無法載入名單</option>';
+      }
+    };
 
-      if (!name) {
+    // 送出爭議事件
+    async function submitIncident() {
+      const politician_id = document.getElementById('politician_id').value;
+      const title = document.getElementById('incident_title').value;
+      const date = document.getElementById('incident_date').value;
+      const content = document.getElementById('incident_content').value;
+      const source = document.getElementById('source_url').value;
+      const msgDiv = document.getElementById('incident_message');
+
+      if (!politician_id || !title || !content) {
         msgDiv.style.color = 'red';
-        msgDiv.innerText = '❌ 請填寫姓名！';
+        msgDiv.innerText = '❌ 人物、標題與內容為必填！';
         return;
       }
 
@@ -88,28 +145,69 @@
       msgDiv.innerText = '⏳ 資料傳送中...';
 
       try {
-        const response = await fetch(`${API_URL}/api/politicians`, {
+        const response = await fetch(`${API_URL}/api/incidents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, party, description })
+          body: JSON.stringify({ 
+            politician_id: politician_id, 
+            title: title, 
+            incident_date: date || null, 
+            content: content, 
+            source_url: source 
+          })
         });
-        
         const result = await response.json();
 
         if (response.ok) {
           msgDiv.style.color = '#27ae60';
           msgDiv.innerText = '✅ ' + result.message;
-          // 清空表單
-          document.getElementById('name').value = '';
-          document.getElementById('party').value = '';
-          document.getElementById('description').value = '';
+          document.getElementById('incident_title').value = '';
+          document.getElementById('incident_content').value = '';
+          document.getElementById('source_url').value = '';
         } else {
           msgDiv.style.color = 'red';
           msgDiv.innerText = '❌ 錯誤：' + result.error;
         }
       } catch (error) {
         msgDiv.style.color = 'red';
-        msgDiv.innerText = '❌ 連線失敗，請檢查後端是否正常運作。';
+        msgDiv.innerText = '❌ 連線失敗。';
+      }
+    }
+
+    // 送出政治人物 (原功能)
+    async function submitPolitician() {
+      const name = document.getElementById('pol_name').value;
+      const party = document.getElementById('pol_party').value;
+      const desc = document.getElementById('pol_description').value;
+      const msgDiv = document.getElementById('pol_message');
+
+      if (!name) {
+        msgDiv.style.color = 'red';
+        msgDiv.innerText = '❌ 請填寫姓名！';
+        return;
+      }
+      msgDiv.style.color = '#f39c12';
+      msgDiv.innerText = '⏳ 傳送中...';
+
+      try {
+        const response = await fetch(`${API_URL}/api/politicians`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, party, description: desc })
+        });
+        const result = await response.json();
+        if (response.ok) {
+          msgDiv.style.color = '#27ae60';
+          msgDiv.innerText = '✅ ' + result.message;
+          // 新增人物成功後，重新載入網頁更新下拉選單
+          setTimeout(() => location.reload(), 1500); 
+        } else {
+          msgDiv.style.color = 'red';
+          msgDiv.innerText = '❌ 錯誤：' + result.error;
+        }
+      } catch (error) {
+        msgDiv.style.color = 'red';
+        msgDiv.innerText = '❌ 連線失敗。';
       }
     }
   </script>
