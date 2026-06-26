@@ -2,62 +2,126 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>政治人物言行追蹤網</title>
   <style>
     body { 
       font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
       background: #f4f4f9; 
-      padding: 20px; 
-      margin: 0;
+      padding: 15px; 
+      margin: 0; 
+      color: #333; 
     }
-    .container { 
-      max-width: 800px; 
-      margin: 0 auto; 
+    .header { text-align: center; margin-bottom: 20px; padding: 20px 0; }
+    .header h1 { color: #2c3e50; margin: 0; font-size: 24px; }
+    .header p { color: #7f8c8d; font-size: 14px; margin-top: 5px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    
+    /* 卡片設計 */
+    .card { 
       background: white; 
       padding: 20px; 
       border-radius: 10px; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
-    }
-    h1 { color: #2c3e50; text-align: center; }
-    #status { 
-      text-align: center; 
-      padding: 10px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
       margin-bottom: 20px; 
-      border-radius: 5px;
-      background-color: #e8f8f5;
-      color: #16a085;
-      font-weight: bold;
+      border-left: 5px solid #e74c3c; /* 左側紅色邊線強調爭議 */
     }
+    .card h3 { margin-top: 0; color: #2c3e50; font-size: 20px; margin-bottom: 10px; }
+    .meta { font-size: 13px; color: #95a5a6; margin-bottom: 10px; }
+    
+    /* 人物標籤 */
+    .tags { margin-bottom: 15px; }
+    .tag { 
+      display: inline-block; 
+      background: #34495e; 
+      color: white; 
+      padding: 4px 10px; 
+      border-radius: 20px; 
+      font-size: 13px; 
+      margin-right: 5px; 
+      margin-bottom: 5px;
+    }
+    
+    .content { line-height: 1.6; font-size: 15px; color: #444; }
+    .source { margin-top: 15px; font-size: 14px; border-top: 1px dashed #eee; padding-top: 10px; }
+    .source a { color: #3498db; text-decoration: none; font-weight: bold; }
+    .source a:hover { text-decoration: underline; }
+    .loading { text-align: center; color: #7f8c8d; padding: 20px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>政治人物言行追蹤網 - 測試版</h1>
-    <div id="status">正在嘗試與後端連線...</div>
-    <p style="text-align: center; color: #666;">如果上方顯示連線成功，代表「前端 ↔ 後端 ↔ 資料庫」全線貫通！</p>
+
+  <div class="header">
+    <h1>🔍 政治人物言行追蹤網</h1>
+    <p>凡走過必留下痕跡，共同監督與記錄</p>
+  </div>
+
+  <div class="container" id="incidents_list">
+    <div class="loading">⏳ 正在載入最新資料...</div>
   </div>
 
   <script>
-    // 👇👇👇 【重要】請把下方引號內的文字，換成你的 Render 網址 👇👇👇
-    // 格式範例：'https://politics-api-xxxx.onrender.com' (請保留單引號，網址最後不要有 / )
+    // 👇👇👇 請換成你的 Render 網址 (保留單引號，結尾不要加 /) 👇👇👇
     const API_URL = 'https://politics-api-j18a.onrender.com';
 
-    async function checkStatus() {
-      const statusDiv = document.getElementById('status');
+    async function loadIncidents() {
+      const listDiv = document.getElementById('incidents_list');
       try {
-        const res = await fetch(`${API_URL}/api/status`);
-        const data = await res.json();
-        statusDiv.innerText = '✅ 完美連線：' + data.message;
-      } catch (err) {
-        statusDiv.innerText = '❌ 無法連線到後端，請檢查網址是否有填錯。錯誤訊息：' + err.message;
-        statusDiv.style.backgroundColor = '#fadbd8';
-        statusDiv.style.color = '#c0392b';
+        const response = await fetch(`${API_URL}/api/incidents`);
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error);
+
+        if (data.length === 0) {
+          listDiv.innerHTML = '<div class="loading">目前還沒有任何爭議事件資料。</div>';
+          return;
+        }
+
+        // 清空載入中訊息
+        listDiv.innerHTML = '';
+
+        // 將每一筆事件轉成 HTML 卡片顯示
+        data.forEach(incident => {
+          
+          // 1. 處理關聯的政治人物標籤
+          let tagsHtml = '';
+          if (incident.politician_incident && incident.politician_incident.length > 0) {
+            incident.politician_incident.forEach(pi => {
+              if (pi.politicians) {
+                tagsHtml += `<span class="tag">👤 ${pi.politicians.name} (${pi.politicians.party || '無黨籍'})</span>`;
+              }
+            });
+          }
+
+          // 2. 處理日期與來源連結
+          const dateText = incident.incident_date ? incident.incident_date : '日期未提供';
+          const sourceHtml = incident.source_url 
+            ? `<div class="source">🔗 <a href="${incident.source_url}" target="_blank">查看新聞來源</a></div>` 
+            : '';
+
+          // 3. 處理多行文字的換行 (將 \n 轉成 <br>)
+          const contentHtml = incident.content.replace(/\n/g, '<br>');
+
+          // 4. 組合這張卡片
+          const card = `
+            <div class="card">
+              <h3>${incident.title}</h3>
+              <div class="tags">${tagsHtml}</div>
+              <div class="meta">📅 發生日期：${dateText}</div>
+              <div class="content">${contentHtml}</div>
+              ${sourceHtml}
+            </div>
+          `;
+          listDiv.innerHTML += card;
+        });
+
+      } catch (error) {
+        listDiv.innerHTML = `<div class="loading" style="color: red;">❌ 無法載入資料，請檢查後端連線。</div>`;
       }
     }
 
-    // 網頁載入時自動執行檢查
-    checkStatus();
+    // 網頁載入時自動去抓資料
+    window.onload = loadIncidents;
   </script>
 </body>
 </html>
