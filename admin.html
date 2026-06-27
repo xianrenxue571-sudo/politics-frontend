@@ -16,27 +16,35 @@
     .btn-red { background: #e74c3c; } .btn-red:hover { background: #c0392b; }
     .btn-blue { background: #3498db; } .btn-blue:hover { background: #2980b9; }
     .message { margin-top: 15px; text-align: center; font-weight: bold; }
+    
+    /* AI 選項小卡片樣式 */
+    .ai-option-card { border: 2px dashed #8e44ad; padding: 12px; margin-top: 10px; border-radius: 6px; background: #faf5fc; cursor: pointer; }
+    .ai-option-card:hover { background: #f3e5f8; }
+    .ai-option-card h4 { margin: 0 0 5px 0; color: #8e44ad; }
+    .ai-option-card p { margin: 0; font-size: 14px; color: #555; }
   </style>
 </head>
 <body>
 
+  <!-- AI 自動抓資料 -->
   <div class="container" style="border-left: 5px solid #8e44ad;">
-    <h2 style="color: #8e44ad;">🤖 AI 助理：自動抓取資料</h2>
-    
+    <h2 style="color: #8e44ad;">🤖 AI 助理：聯網自動抓取</h2>
     <div class="form-group">
       <label>1. 選擇要查詢的政治人物</label>
       <select id="ai_politician_id"><option value="">⏳ 載入名單中...</option></select>
     </div>
-
     <div class="form-group">
-      <label>2. 指定查詢年月 (例如：2023-08)</label>
+      <label>2. 指定查詢年月</label>
       <input type="month" id="ai_month">
     </div>
-
-    <button class="btn-purple" onclick="fetchFromAI()">呼叫 AI 開始搜尋</button>
+    <button class="btn-purple" onclick="fetchFromAI()">聯網搜尋事件選項</button>
     <div id="ai_message" class="message"></div>
+    
+    <!-- 👇 用來放 AI 吐出的 3 個選項的容器 👇 -->
+    <div id="ai_options_container"></div>
   </div>
 
+  <!-- 審核與發布爭議事件 -->
   <div class="container" style="border-left: 5px solid #e74c3c;" id="publish_section">
     <h2 style="color: #e74c3c;">🔥 審核與發布爭議事件</h2>
     <div class="form-group"><label>關聯政治人物</label><select id="politician_id"></select></div>
@@ -48,20 +56,22 @@
     <div id="incident_message" class="message"></div>
   </div>
 
+  <!-- 新增人物 -->
   <div class="container" style="border-left: 5px solid #3498db;">
     <h2 style="color: #3498db;">➕ 新增人物 (建檔)</h2>
     <div class="form-group"><label>姓名</label><input type="text" id="pol_name"></div>
     <div class="form-group"><label>政黨</label><input type="text" id="pol_party"></div>
     <div class="form-group"><label>簡介</label><textarea id="pol_description" rows="2"></textarea></div>
     <button class="btn-blue" onclick="submitPolitician()">建檔人物</button>
-    <div id="pol_message" class="message"></div>
   </div>
 
   <script>
     // 👇👇👇 請換成你的 Render 網址 👇👇👇
     const API_URL = 'https://politics-api-j18a.onrender.com';
 
-    // 載入政治人物清單
+    // 全域變數，用來暫存 AI 的多個選項資料
+    let currentAiOptions = [];
+
     window.onload = async function() {
       const aiSelect = document.getElementById('ai_politician_id');
       const pubSelect = document.getElementById('politician_id');
@@ -77,18 +87,19 @@
       }
     };
 
-    // 呼叫 AI 抓資料
     async function fetchFromAI() {
       const polSelect = document.getElementById('ai_politician_id');
       const polId = polSelect.value;
       const polName = polSelect.options[polSelect.selectedIndex].text.split(' (')[0];
       const month = document.getElementById('ai_month').value;
       const msgDiv = document.getElementById('ai_message');
+      const container = document.getElementById('ai_options_container');
 
       if (!polId || !month) return msgDiv.innerText = '❌ 請選擇人物並填寫年月！';
 
       msgDiv.style.color = '#f39c12';
-      msgDiv.innerText = '⏳ AI 爬網搜尋中，大約需等 5~10 秒...';
+      msgDiv.innerText = '⏳ 正在聯網 Google 搜尋並生成 3 個事件選項，請等候約 10 秒...';
+      container.innerHTML = ''; 
 
       try {
         const res = await fetch(`${API_URL}/api/fetch-ai`, {
@@ -98,30 +109,46 @@
         });
         const result = await res.json();
 
-        if (res.ok) {
+        if (res.ok && Array.isArray(result.data)) {
+          currentAiOptions = result.data;
           msgDiv.style.color = '#27ae60';
-          msgDiv.innerText = '✅ 抓取成功！已填入下方表單，請進行審核。';
+          msgDiv.innerText = `💡 成功找到 ${result.data.length} 個事件！請點選下方其中一個卡片來帶入表單：`;
           
-          // 自動填入發布表單
-          document.getElementById('politician_id').value = polId;
-          document.getElementById('incident_title').value = result.data.title || '';
-          document.getElementById('incident_date').value = result.data.date || '';
-          document.getElementById('incident_content').value = result.data.content || '';
-          document.getElementById('source_url').value = result.data.source || '';
-          
-          // 畫面自動往下滾動到發布表單
-          document.getElementById('publish_section').scrollIntoView({ behavior: 'smooth' });
+          // 渲染 3 個卡片選項
+          result.data.forEach((option, index) => {
+            container.innerHTML += `
+              <div class="ai-option-card" onclick="selectOption(${index}, '${polId}')">
+                <h4>📌 選項 ${index + 1}：${option.title}</h4>
+                <p><strong>內容：</strong>${option.content.substring(0, 60)}...</p>
+              </div>
+            `;
+          });
         } else {
           msgDiv.style.color = 'red';
-          msgDiv.innerText = '❌ 錯誤：' + result.error;
+          msgDiv.innerText = '❌ 錯誤：' + (result.error || 'AI 回傳格式不正確');
         }
       } catch (err) {
         msgDiv.style.color = 'red';
-        msgDiv.innerText = '❌ 連線失敗。';
+        msgDiv.innerText = '❌ 連線失敗或搜尋逾時。';
       }
     }
 
-    // 發布事件
+    // 當使用者點擊某個 AI 卡片選項時執行
+    function selectOption(index, polId) {
+      const selected = currentAiOptions[index];
+      if (!selected) return;
+
+      // 自動填入下方表單
+      document.getElementById('politician_id').value = polId;
+      document.getElementById('incident_title').value = selected.title || '';
+      document.getElementById('incident_date').value = selected.date || '';
+      document.getElementById('incident_content').value = selected.content || '';
+      document.getElementById('source_url').value = selected.source || '';
+
+      // 滾動到審核區
+      document.getElementById('publish_section').scrollIntoView({ behavior: 'smooth' });
+    }
+
     async function submitIncident() {
       const body = {
         politician_id: document.getElementById('politician_id').value,
@@ -131,22 +158,18 @@
         source_url: document.getElementById('source_url').value
       };
       const res = await fetch(`${API_URL}/api/incidents`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      const result = await res.json();
       const msg = document.getElementById('incident_message');
       if(res.ok) { 
         msg.style.color = 'green'; msg.innerText = '✅ 發布成功！'; 
         ['incident_title','incident_content','source_url'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('ai_options_container').innerHTML = '';
+      } else { 
+        msg.style.color = 'red'; msg.innerText = '❌ 發布失敗'; 
       }
-      else { msg.style.color = 'red'; msg.innerText = '❌ 錯誤：' + result.error; }
     }
 
-    // 新增人物
     async function submitPolitician() {
-      const body = {
-        name: document.getElementById('pol_name').value,
-        party: document.getElementById('pol_party').value,
-        description: document.getElementById('pol_description').value
-      };
+      const body = { name: document.getElementById('pol_name').value, party: document.getElementById('pol_party').value, description: document.getElementById('pol_description').value };
       const res = await fetch(`${API_URL}/api/politicians`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       if(res.ok) setTimeout(() => location.reload(), 1000);
     }
