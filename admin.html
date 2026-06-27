@@ -11,54 +11,45 @@
     .form-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
     input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-    button { width: 100%; padding: 12px; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    button { width: 100%; padding: 12px; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
     .btn-purple { background: #8e44ad; } .btn-purple:hover { background: #732d91; }
     .btn-red { background: #e74c3c; } .btn-red:hover { background: #c0392b; }
+    .btn-gray { background: #7f8c8d; } .btn-gray:hover { background: #636e72; }
     .btn-blue { background: #3498db; } .btn-blue:hover { background: #2980b9; }
     .message { margin-top: 15px; text-align: center; font-weight: bold; }
-    
-    /* AI 選項小卡片樣式 */
-    .ai-option-card { border: 2px dashed #8e44ad; padding: 12px; margin-top: 10px; border-radius: 6px; background: #faf5fc; cursor: pointer; }
-    .ai-option-card:hover { background: #f3e5f8; }
-    .ai-option-card h4 { margin: 0 0 5px 0; color: #8e44ad; }
-    .ai-option-card p { margin: 0; font-size: 14px; color: #555; }
   </style>
 </head>
 <body>
 
-  <!-- AI 自動抓資料 -->
   <div class="container" style="border-left: 5px solid #8e44ad;">
-    <h2 style="color: #8e44ad;">🤖 AI 助理：聯網自動抓取</h2>
+    <h2 style="color: #8e44ad;">🤖 AI 助理：網址內容提煉</h2>
     <div class="form-group">
-      <label>1. 選擇要查詢的政治人物</label>
+      <label>1. 選擇相關政治人物</label>
       <select id="ai_politician_id"><option value="">⏳ 載入名單中...</option></select>
     </div>
     <div class="form-group">
-      <label>2. 指定查詢年月</label>
-      <input type="month" id="ai_month">
+      <label>2. 貼上新聞或 YouTube 網址</label>
+      <input type="url" id="ai_url" placeholder="https://...">
     </div>
-    <button class="btn-purple" onclick="fetchFromAI()">聯網搜尋事件選項</button>
+    <button class="btn-purple" onclick="fetchUrlSummary()">📥 讀取網址並提煉摘要</button>
     <div id="ai_message" class="message"></div>
-    
-    <!-- 👇 用來放 AI 吐出的 3 個選項的容器 👇 -->
-    <div id="ai_options_container"></div>
   </div>
 
-  <!-- 審核與發布爭議事件 -->
   <div class="container" style="border-left: 5px solid #e74c3c;" id="publish_section">
-    <h2 style="color: #e74c3c;">🔥 審核與發布爭議事件</h2>
+    <h2 style="color: #e74c3c;">🔥 審核與發布區</h2>
     <div class="form-group"><label>關聯政治人物</label><select id="politician_id"></select></div>
     <div class="form-group"><label>事件標題</label><input type="text" id="incident_title"></div>
     <div class="form-group"><label>發生日期</label><input type="date" id="incident_date"></div>
-    <div class="form-group"><label>詳細內容</label><textarea id="incident_content" rows="4"></textarea></div>
+    <div class="form-group"><label>詳細內容</label><textarea id="incident_content" rows="6"></textarea></div>
     <div class="form-group"><label>來源連結</label><input type="url" id="source_url"></div>
-    <button class="btn-red" onclick="submitIncident()">確認無誤，正式發布</button>
+    
+    <button class="btn-gray" onclick="submitIncident(false)">💾 存為草稿 (不上架)</button>
+    <button class="btn-red" onclick="submitIncident(true)">🚀 確認無誤，正式發布</button>
     <div id="incident_message" class="message"></div>
   </div>
 
-  <!-- 新增人物 -->
   <div class="container" style="border-left: 5px solid #3498db;">
-    <h2 style="color: #3498db;">➕ 新增人物 (建檔)</h2>
+    <h2 style="color: #3498db;">➕ 新增人物建檔</h2>
     <div class="form-group"><label>姓名</label><input type="text" id="pol_name"></div>
     <div class="form-group"><label>政黨</label><input type="text" id="pol_party"></div>
     <div class="form-group"><label>簡介</label><textarea id="pol_description" rows="2"></textarea></div>
@@ -66,12 +57,10 @@
   </div>
 
   <script>
-    // 👇👇👇 請換成你的 Render 網址 👇👇👇
-    const API_URL = 'https://politics-api-j18a.onrender.com';
+    // 👇👇👇 請換成你的 Render 網址 (保留單引號，結尾不要加 /) 👇👇👇
+    const API_URL = '請在這裡貼上你的Render網址';
 
-    // 全域變數，用來暫存 AI 的多個選項資料
-    let currentAiOptions = [];
-
+    // 載入人物清單
     window.onload = async function() {
       const aiSelect = document.getElementById('ai_politician_id');
       const pubSelect = document.getElementById('politician_id');
@@ -83,93 +72,91 @@
         aiSelect.innerHTML = options;
         pubSelect.innerHTML = options;
       } catch (err) {
-        aiSelect.innerHTML = '<option>載入失敗</option>';
+        aiSelect.innerHTML = '<option>載入失敗，請確認 Render 是否啟動</option>';
       }
     };
 
-    async function fetchFromAI() {
+    // 呼叫 AI 讀取網址
+    async function fetchUrlSummary() {
       const polSelect = document.getElementById('ai_politician_id');
       const polId = polSelect.value;
-      const polName = polSelect.options[polSelect.selectedIndex].text.split(' (')[0];
-      const month = document.getElementById('ai_month').value;
+      const polName = polSelect.options[polSelect.selectedIndex]?.text.split(' (')[0];
+      const url = document.getElementById('ai_url').value;
       const msgDiv = document.getElementById('ai_message');
-      const container = document.getElementById('ai_options_container');
 
-      if (!polId || !month) return msgDiv.innerText = '❌ 請選擇人物並填寫年月！';
+      if (!polId || !url) return msgDiv.innerText = '❌ 請選擇人物並貼上網址！';
 
       msgDiv.style.color = '#f39c12';
-      msgDiv.innerText = '⏳ 正在聯網 Google 搜尋並生成 3 個事件選項，請等候約 10 秒...';
-      container.innerHTML = ''; 
+      msgDiv.innerText = '⏳ AI 正在閱讀網址內容，請稍候...';
 
       try {
-        const res = await fetch(`${API_URL}/api/fetch-ai`, {
+        const res = await fetch(`${API_URL}/api/summarize-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ politician_name: polName, target_month: month })
+          body: JSON.stringify({ url, politician_name: polName })
         });
         const result = await res.json();
 
-        if (res.ok && Array.isArray(result.data)) {
-          currentAiOptions = result.data;
+        if (res.ok && result.data) {
           msgDiv.style.color = '#27ae60';
-          msgDiv.innerText = `💡 成功找到 ${result.data.length} 個事件！請點選下方其中一個卡片來帶入表單：`;
+          msgDiv.innerText = '✅ 提煉成功！已填入下方表單，請進行審核。';
           
-          // 渲染 3 個卡片選項
-          result.data.forEach((option, index) => {
-            container.innerHTML += `
-              <div class="ai-option-card" onclick="selectOption(${index}, '${polId}')">
-                <h4>📌 選項 ${index + 1}：${option.title}</h4>
-                <p><strong>內容：</strong>${option.content.substring(0, 60)}...</p>
-              </div>
-            `;
-          });
+          // 自動填入審核區
+          document.getElementById('politician_id').value = polId;
+          document.getElementById('incident_title').value = result.data.title || '';
+          document.getElementById('incident_date').value = result.data.date || '';
+          document.getElementById('incident_content').value = result.data.content || '';
+          document.getElementById('source_url').value = result.data.source || url;
+          
+          // 畫面自動往下滾動
+          document.getElementById('publish_section').scrollIntoView({ behavior: 'smooth' });
         } else {
           msgDiv.style.color = 'red';
-          msgDiv.innerText = '❌ 錯誤：' + (result.error || 'AI 回傳格式不正確');
+          msgDiv.innerText = '❌ 錯誤：' + (result.error || '解析失敗');
         }
       } catch (err) {
         msgDiv.style.color = 'red';
-        msgDiv.innerText = '❌ 連線失敗或搜尋逾時。';
+        msgDiv.innerText = '❌ 連線失敗，請檢查網址或伺服器狀態。';
       }
     }
 
-    // 當使用者點擊某個 AI 卡片選項時執行
-    function selectOption(index, polId) {
-      const selected = currentAiOptions[index];
-      if (!selected) return;
-
-      // 自動填入下方表單
-      document.getElementById('politician_id').value = polId;
-      document.getElementById('incident_title').value = selected.title || '';
-      document.getElementById('incident_date').value = selected.date || '';
-      document.getElementById('incident_content').value = selected.content || '';
-      document.getElementById('source_url').value = selected.source || '';
-
-      // 滾動到審核區
-      document.getElementById('publish_section').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    async function submitIncident() {
+    // 發布或存草稿
+    async function submitIncident(isPublish) {
       const body = {
         politician_id: document.getElementById('politician_id').value,
         title: document.getElementById('incident_title').value,
         incident_date: document.getElementById('incident_date').value || null,
         content: document.getElementById('incident_content').value,
-        source_url: document.getElementById('source_url').value
+        source_url: document.getElementById('source_url').value,
+        is_publish: isPublish // 傳遞狀態：true(發布) 或 false(草稿)
       };
-      const res = await fetch(`${API_URL}/api/incidents`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      
+      const res = await fetch(`${API_URL}/api/incidents`, { 
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify(body) 
+      });
       const msg = document.getElementById('incident_message');
+      
       if(res.ok) { 
-        msg.style.color = 'green'; msg.innerText = '✅ 發布成功！'; 
-        ['incident_title','incident_content','source_url'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('ai_options_container').innerHTML = '';
+        msg.style.color = 'green'; 
+        msg.innerText = isPublish ? '✅ 正式發布成功！已上架至前台。' : '💾 已存為草稿，前台不會顯示。'; 
+        // 清空欄位
+        ['incident_title','incident_content','source_url', 'incident_date'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('ai_url').value = '';
       } else { 
-        msg.style.color = 'red'; msg.innerText = '❌ 發布失敗'; 
+        const result = await res.json();
+        msg.style.color = 'red'; msg.innerText = '❌ 失敗：' + (result.error || '伺服器錯誤'); 
       }
     }
 
+    // 新增人物
     async function submitPolitician() {
-      const body = { name: document.getElementById('pol_name').value, party: document.getElementById('pol_party').value, description: document.getElementById('pol_description').value };
+      const body = { 
+        name: document.getElementById('pol_name').value, 
+        party: document.getElementById('pol_party').value, 
+        description: document.getElementById('pol_description').value 
+      };
       const res = await fetch(`${API_URL}/api/politicians`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       if(res.ok) setTimeout(() => location.reload(), 1000);
     }
